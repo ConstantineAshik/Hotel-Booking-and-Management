@@ -74,15 +74,11 @@ docs/rates.jpg
 docs/website.jpg
 ```
 
-Recommended image gallery once the files are added:
-
-```markdown
 ![Admin dashboard](docs/Dashboard.jpg)
 ![Reservations](docs/reservations.jpg)
 ![Room types](docs/rooms.jpg)
 ![Rates and pricing](docs/rates.jpg)
 ![Website management](docs/website.jpg)
-```
 
 The screenshots are documentation assets only; they do not seed records or change application behavior.
 
@@ -95,12 +91,8 @@ docs/website-home.jpg
 docs/website-rooms.jpg
 ```
 
-Recommended public website gallery:
-
-```markdown
 ![Hotel website homepage](docs/website-home.jpg)
 ![Room listing page](docs/website-rooms.jpg)
-```
 
 ### Room visitor journey
 
