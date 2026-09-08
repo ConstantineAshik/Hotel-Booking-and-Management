@@ -6,6 +6,7 @@ import { db } from "./db";
 import { assertOrigin, createSession, rateLimit } from "./auth";
 import { hashPassword, verifyPassword, tokenMatches, digest } from "./crypto";
 import { roleTemplates, permissions } from "../domain/permissions";
+import { defaultHomePageDocument } from "../domain/cms";
 import type { FormState } from "../components/action-form";
 
 const credentials = z.object({ email: z.email().transform(v => v.trim().toLowerCase()), password: z.string().min(12).max(128) });
@@ -59,6 +60,12 @@ export async function setupAction(_: FormState, data: FormData): Promise<FormSta
       await tx.paymentMethod.create({ data: { propertyId: property.id, provider: "pay-at-hotel", enabled: true } });
       await tx.customForm.createMany({data:[{propertyId:property.id,name:"Contact",active:true,fields:[{key:"name",label:"Name",type:"text",required:true,options:[]},{key:"email",label:"Email",type:"email",required:true,options:[]},{key:"message",label:"Message",type:"textarea",required:true,options:[]}]},{propertyId:property.id,name:"Newsletter",active:true,fields:[{key:"email",label:"Email",type:"email",required:true,options:[]},{key:"consent",label:"I agree to receive hotel news and offers by email.",type:"checkbox",required:true,options:[]}]}]});
       await tx.configuration.create({ data: { propertyId: property.id, namespace: "hotel", draft: { checkIn: "14:00", checkOut: "11:00" }, published: { checkIn: "14:00", checkOut: "11:00" } } });
+      const homeDocument = defaultHomePageDocument(input.hotelName, "en");
+      const home = await tx.page.create({ data: { propertyId: property.id, slug: "home", locale: "en", title: homeDocument.title, status: "PUBLISHED", version: 1, publishedVersion: 1, seo: { title: homeDocument.seoTitle, description: homeDocument.description, noIndex: false } } });
+      await tx.pageSection.createMany({ data: homeDocument.sections.map((section, position) => ({ id: section.id, pageId: home.id, type: section.type, position, visible: section.visible, startsAt: null, endsAt: null, content: section.content, style: section.style })) });
+      await tx.pageRevision.create({ data: { pageId: home.id, version: 1, snapshot: homeDocument, actorId: user.id } });
+      await tx.menu.create({ data: { propertyId: property.id, name: "header", locale: "en", items: { create: [{ label: "Home", url: "/", position: 0 }, { label: "Rooms", url: "/rooms", position: 1 }, { label: "Contact", url: "/contact", position: 2 }] } } });
+      await tx.menu.create({ data: { propertyId: property.id, name: "footer", locale: "en", items: { create: [{ label: "Home", url: "/", position: 0 }, { label: "Rooms", url: "/rooms", position: 1 }, { label: "Contact", url: "/contact", position: 2 }] } } });
       await tx.auditLog.create({ data: { propertyId: property.id, actorId: user.id, action: "setup.completed", entityType: "Property", entityId: property.id } });
       return user.id;
     });

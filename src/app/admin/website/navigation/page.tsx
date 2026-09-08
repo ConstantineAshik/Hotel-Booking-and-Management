@@ -4,7 +4,7 @@ import {requireUser} from "../../../../server/auth";
 import {NavigationEditor} from "../../../../components/navigation-editor";
 
 export default async function Navigation({searchParams}:{searchParams:Promise<{menu?:string}>}){
- const {property}=await requireUser("website.edit");
+ const {property}=await requireUser("website.publish");
  const query=await searchParams;
  const name=query.menu==="footer"?"footer":"header";
  const [menu,pages]=await Promise.all([

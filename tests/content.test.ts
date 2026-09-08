@@ -1,6 +1,7 @@
 import {test} from "node:test";
 import assert from "node:assert/strict";
 import {contentDocumentSchema,contentInputSchema,contentVisible} from "../src/domain/content.js";
+import {defaultHomePageDocument,pageDocumentSchema} from "../src/domain/cms.js";
 import {readJsonBody,RequestBodyError} from "../src/server/request-body.js";
 test("content windows include the start and exclude the end",()=>{
  const document=contentDocumentSchema.parse({title:"Winter offer",startsAt:"2027-01-01T00:00:00.000Z",endsAt:"2027-02-01T00:00:00.000Z"});
@@ -8,6 +9,13 @@ test("content windows include the start and exclude the end",()=>{
  assert.equal(contentVisible(document,new Date(document.startsAt!)),true);
  assert.equal(contentVisible(document,new Date(document.endsAt!)),false);
  assert.equal(contentDocumentSchema.safeParse({...document,endsAt:document.startsAt}).success,false);
+});
+test("default homepage is a valid publishable document with guest essentials",()=>{
+ const document=defaultHomePageDocument("HillView");
+ assert.equal(pageDocumentSchema.safeParse(document).success,true);
+ assert.equal(document.slug,"home");
+ assert.deepEqual(document.sections.map(section=>section.type),["hero","rooms","cards","amenities","faq","contact","newsletter"]);
+ assert.equal(document.sections[0].content.ctaUrl,"/rooms");
 });
 test("content rejects executable links, invalid addresses, and injected fields",()=>{
  const input={version:0,kind:"offers",slug:"winter-offer",locale:"en",mode:"draft",document:{title:"Winter offer"}};

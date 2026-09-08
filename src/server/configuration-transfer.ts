@@ -15,7 +15,7 @@ export async function exportConfiguration(principal:Principal){
   authorize(principal,principal.propertyId,"settings.manage");
   const allowed=Object.entries(settingsModules).filter(([,definition])=>principal.permissions.includes(definition.permission)).map(([namespace])=>namespace);
   const rows=await db.configuration.findMany({where:{propertyId:principal.propertyId,namespace:{in:allowed}},orderBy:{namespace:"asc"}});
-  return {format:"hotel-booking-settings" as const,version:1 as const,exportedAt:new Date().toISOString(),namespaces:rows.map(row=>({namespace:row.namespace,values:settingsSchema(row.namespace).parse(row.draft)}))};
+  return {format:"hotel-booking-settings" as const,version:1 as const,exportedAt:new Date().toISOString(),namespaces:allowed.map(namespace=>({namespace,values:settingsSchema(namespace).parse(rows.find(row=>row.namespace===namespace)?.draft??{})}))};
 }
 
 export async function importConfiguration(principal:Principal,raw:unknown){

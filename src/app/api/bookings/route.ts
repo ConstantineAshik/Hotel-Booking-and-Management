@@ -1,3 +1,4 @@
+import {readJsonBody} from "../../../server/request-body";
 import {cookies} from "next/headers";
 import {db} from "../../../server/db";
 import {assertOrigin,rateLimit} from "../../../server/auth";
@@ -7,7 +8,7 @@ export async function POST(request:Request){
  try{
   if(Number(request.headers.get("content-length")??0)>20000)return Response.json({error:"Request is too large."},{status:413});
   await rateLimit("booking:global",100,3600);
-  const property=await db.property.findFirstOrThrow();const raw=await request.json();
+  const property=await db.property.findFirstOrThrow();const raw=await readJsonBody(request);
   const {booking,accessToken}=await reserve(property.id,raw);
   (await cookies()).set("booking_access",accessToken,{httpOnly:true,sameSite:"lax",secure:process.env.NODE_ENV==="production",path:"/confirmation",maxAge:86400*7});
   return Response.json({reference:booking.reference,confirmationUrl:`/confirmation/${booking.reference}`},{status:201});

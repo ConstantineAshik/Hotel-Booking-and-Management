@@ -21,7 +21,9 @@ Updated 2026-09-08. This is a working implementation, not a production-readiness
 
 ## Verification
 
-- Production packaging added: Dockerfile, Compose services, operator README, and guarded backup/restore scripts. Final container, database restore, and HTTP regression verification is pending because Docker is unavailable in the current environment; do not treat packaging as release-certified.
+- Production packaging added: Dockerfile, Compose services, operator README, and guarded backup/restore scripts. Docker image build, container migrations, worker execution, standalone health/setup smoke tests, and seven database integrity checks passed. Database/media restore rehearsal remains pending.
+- Starter homepage includes editable room search, room listings, stay-planning cards, FAQs, contact, and newsletter sections. Missing legacy homepages can be installed from Website administration. An upgrade script preserves customized pages and retains the previous revision when upgrading an untouched starter.
+- Empty gallery sections no longer automatically expose unrelated media-library images.
 
 - Unit tests cover dates, money, pricing, cancellation, credentials, authorization, forms, content visibility, request-size handling, notification placeholders, report dates, and CSV formula protection.
 - The HTTP harness uses a temporary isolated database, migrates it, starts the production build, and exercises the actual application. It removes its own database and media afterward.

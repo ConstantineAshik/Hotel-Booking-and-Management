@@ -28,6 +28,8 @@ export async function saveRoom(_: FormState, form: FormData): Promise<FormState>
         await tx.media.findFirstOrThrow({ where: { id: mediaId, propertyId: auth.property.id, state: "READY" } });
         await tx.roomImage.deleteMany({ where: { roomTypeId: row.id, position: 0 } });
         await tx.roomImage.upsert({ where: { roomTypeId_mediaId: { roomTypeId: row.id, mediaId } }, create: { roomTypeId: row.id, mediaId, propertyId: auth.property.id, position: 0 }, update: { position: 0 } });
+      } else if (form.has("mediaId")) {
+        await tx.roomImage.deleteMany({ where: { roomTypeId: row.id, position: 0 } });
       }
       await tx.auditLog.create({ data: { propertyId: auth.property.id, actorId: auth.user.id, action: id ? "room.updated" : "room.created", entityType: "RoomType", entityId: row.id, before: before ? JSON.parse(JSON.stringify(before)) : undefined, after: input } });
     });

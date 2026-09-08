@@ -2,3 +2,5 @@
 
 .honeypot{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;}
 .hotel-tagline{display:block;font-family:var(--body);font-size:11px;line-height:1.5;font-weight:400;margin-top:5px}.hotel-footer .form{margin-top:20px}.hotel-footer .form input{color:var(--ink)}
+
+.hotel-site .cms-section.ink{background-color:var(--brand-secondary)}.hotel-site .eyebrow{color:var(--brand-accent)}.hotel-site h1,.hotel-site h2,.hotel-site h3{color:var(--public-heading-color)}.hotel-site .cms-section.ink h1,.hotel-site .cms-section.ink h2,.hotel-site .cms-section.ink h3,.hotel-site .hotel-footer h3{color:inherit}.hotel-site .message.error{color:var(--public-error)}.hotel-site .message.success{color:var(--public-success)}.hotel-site .message.warning{color:var(--public-warning)}
