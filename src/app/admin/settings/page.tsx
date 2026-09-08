@@ -1,0 +1,9 @@
+import { db } from "../../../server/db";
+import { requireUser } from "../../../server/auth";
+import { ActionForm } from "../../../components/action-form";
+import { saveHotel } from "../../../server/room-actions";
+export default async function Settings() {
+  const {property}=await requireUser("settings.manage");
+  const config=await db.configuration.findUnique({where:{propertyId_namespace:{propertyId:property.id,namespace:"hotel"}}});const values=(config?.published??{}) as Record<string,string>;
+  return <><div className="page-heading"><div><span className="eyebrow">PROPERTY SETTINGS</span><h1>The essentials.</h1><p className="muted">Keep your hotel information and guest contact details up to date.</p></div></div><section className="panel padded"><ActionForm action={saveHotel}><div className="form-grid">{[["name","Hotel name",property.name],["legalName","Legal name",values.legalName],["email","Contact email",values.email],["phone","Telephone",values.phone],["whatsapp","WhatsApp",values.whatsapp],["timezone","Time zone",property.timezone]].map(([name,label,value])=><label key={name}>{label}<input name={name} defaultValue={value??""} required={name==="name"||name==="timezone"}/></label>)}</div><label>Address<textarea name="address" defaultValue={values.address??""}/></label><label>Hotel description<textarea name="description" defaultValue={values.description??""}/></label><div className="form-grid"><label>Check-in time<input type="time" name="checkIn" defaultValue={values.checkIn??"14:00"} required/></label><label>Check-out time<input type="time" name="checkOut" defaultValue={values.checkOut??"11:00"} required/></label><label>Currency<select name="currency" defaultValue={property.currency}>{["BDT","USD","EUR","GBP","INR","AED"].map(c=><option key={c}>{c}</option>)}</select><small>Currency changes are locked after your first reservation.</small></label></div></ActionForm></section></>;
+}

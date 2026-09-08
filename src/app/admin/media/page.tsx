@@ -1,0 +1,9 @@
+import Image from "next/image";
+import { db } from "../../../server/db";
+import { requireUser } from "../../../server/auth";
+import { MediaUploader } from "../../../components/media-uploader";
+export default async function MediaPage({searchParams}:{searchParams:Promise<{q?:string}>}) {
+  const {property}=await requireUser("media.edit");const {q=""}=await searchParams;
+  const media=await db.media.findMany({where:{propertyId:property.id,state:"READY",alt:{contains:q.slice(0,100),mode:"insensitive"}},orderBy:{createdAt:"desc"},take:100});
+  return <><div className="page-heading"><div><span className="eyebrow">YOUR PROPERTY IN PICTURES</span><h1>Media library.</h1><p className="muted">Upload once. Use across rooms and your website.</p></div></div><div className="split-layout"><section className="panel"><div className="panel-heading"><h2>Images</h2><form className="search-form"><input name="q" defaultValue={q} placeholder="Search images…" aria-label="Search images"/><button>Search</button></form></div><div className="media-grid">{media.map(m=><article className="media-item" key={m.id}><Image src={`/media/${m.id}`} alt={m.alt} width={400} height={300}/><div><strong>{m.alt}</strong><small>{m.width} × {m.height} · {Math.round(m.bytes/1024)} KB</small><a className="row-link" href={`/media/${m.id}`} target="_blank" rel="noopener noreferrer">Open image ↗</a></div></article>)}</div>{!media.length&&<div className="empty-state"><h3>{q?"No images match your search.":"Let your property shine."}</h3><p>Upload photos to use on room pages and across your website.</p></div>}</section><section className="panel padded"><h2>Upload an image</h2><MediaUploader/></section></div></>;
+}

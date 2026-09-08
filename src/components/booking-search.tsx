@@ -1,0 +1,3 @@
+export function BookingSearch({values={}}:{values?:Record<string,string|undefined>}){
+ return <form className="booking-search" action="/rooms"><label>Check-in<input type="date" name="checkIn" defaultValue={values.checkIn} required/></label><label>Check-out<input type="date" name="checkOut" defaultValue={values.checkOut} required/></label><label>Adults<input type="number" name="adults" min="1" max="100" defaultValue={values.adults??"2"}/></label><label>Children<input type="number" name="children" min="0" max="100" defaultValue={values.children??"0"}/></label><label>Rooms<input type="number" name="rooms" min="1" max="20" defaultValue={values.rooms??"1"}/></label><button className="button">Find your stay <span>↗</span></button></form>;
+}

@@ -1,0 +1,715 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model RequestLimit {
+  key       String @id
+  count     Int
+  expiresAt DateTime @db.Timestamptz
+  @@index([expiresAt])
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  CHECKED_IN
+  CHECKED_OUT
+  CANCELLED
+  NO_SHOW
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+  CANCELLED
+}
+
+enum PublicationStatus {
+  DRAFT
+  PUBLISHED
+  SCHEDULED
+  ARCHIVED
+}
+
+enum UnitStatus {
+  ACTIVE
+  OUT_OF_SERVICE
+  RETIRED
+}
+
+enum HousekeepingStatus {
+  CLEAN
+  DIRTY
+  CLEANING
+  INSPECTED
+  MAINTENANCE
+}
+
+model Property {
+  id            String @id @default(uuid()) @db.Uuid
+  slug          String @unique
+  name          String
+  currency      String @db.Char(3)
+  timezone      String
+  locale        String @default("en")
+  createdAt     DateTime @default(now())
+  settings      Configuration[]
+  memberships   Membership[]
+  roles         Role[]
+  roomTypes     RoomType[]
+  guests        Guest[]
+  bookings      Booking[]
+  amenities     Amenity[]
+  policies      Policy[]
+  services      Service[]
+  promos        PromoCode[]
+  pages         Page[]
+  menus         Menu[]
+  media         Media[]
+  content       ContentEntry[]
+  forms         CustomForm[]
+  templates     EmailTemplate[]
+  auditLogs     AuditLog[]
+  outbox        OutboxEvent[]
+  taxes         TaxRule[]
+  sources       BookingSource[]
+  paymentMethods PaymentMethod[]
+}
+
+model User {
+  id             String @id @default(uuid()) @db.Uuid
+  email          String @unique
+  name           String
+  passwordHash   String
+  verifiedAt     DateTime?
+  disabledAt     DateTime?
+  createdAt      DateTime @default(now())
+  sessions       Session[]
+  memberships    Membership[]
+  resetTokens    PasswordResetToken[]
+  auditLogs      AuditLog[]
+}
+
+model Session {
+  id        String @id @default(uuid()) @db.Uuid
+  tokenHash String @unique
+  userId    String @db.Uuid
+  user      User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  @@index([userId, expiresAt])
+}
+
+model PasswordResetToken {
+  id        String @id @default(uuid()) @db.Uuid
+  tokenHash String @unique
+  userId    String @db.Uuid
+  user      User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  usedAt    DateTime?
+}
+
+model Role {
+  id          String @id @default(uuid()) @db.Uuid
+  name        String
+  propertyId  String? @db.Uuid
+  property    Property? @relation(fields: [propertyId], references: [id], onDelete: Restrict)
+  version     Int @default(1)
+  system      Boolean @default(false)
+  memberships Membership[]
+  permissions RolePermission[]
+  @@unique([propertyId, name])
+}
+
+model Permission {
+  key   String @id
+  roles RolePermission[]
+}
+
+model RolePermission {
+  roleId        String @db.Uuid
+  permissionKey String
+  role          Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission    Permission @relation(fields: [permissionKey], references: [key], onDelete: Cascade)
+  @@id([roleId, permissionKey])
+}
+
+model Membership {
+  propertyId String @db.Uuid
+  userId     String @db.Uuid
+  roleId     String @db.Uuid
+  property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  user       User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role       Role @relation(fields: [roleId], references: [id], onDelete: Restrict)
+  @@id([propertyId, userId])
+  @@index([roleId])
+}
+
+// Versioned, schema-validated settings namespaces: hotel, theme, header, footer,
+// booking, seo, features, cookies, announcements, notifications, invoice, integrations.
+// Contains public/provider configuration only, never secrets or raw scripts.
+model Configuration {
+  id         String @id @default(uuid()) @db.Uuid
+  propertyId String @db.Uuid
+  namespace  String
+  version    Int @default(1)
+  draft      Json
+  published  Json?
+  updatedAt  DateTime @updatedAt
+  property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  revisions  ConfigurationRevision[]
+  @@unique([propertyId, namespace])
+}
+
+model ConfigurationRevision {
+  id              String @id @default(uuid()) @db.Uuid
+  configurationId String @db.Uuid
+  configuration   Configuration @relation(fields: [configurationId], references: [id], onDelete: Cascade)
+  version         Int
+  data            Json
+  actorId         String @db.Uuid
+  createdAt       DateTime @default(now())
+  @@unique([configurationId, version])
+}
+
+model RoomType {
+  id          String @id @default(uuid()) @db.Uuid
+  propertyId  String @db.Uuid
+  property    Property @relation(fields: [propertyId], references: [id], onDelete: Restrict)
+  slug        String
+  name        String
+  description String
+  maxAdults   Int
+  maxChildren Int @default(0)
+  maxGuests   Int
+  basePrice   Decimal @db.Decimal(14, 2)
+  attributes  Json @default("{}")
+  seo         Json @default("{}")
+  published   Boolean @default(false)
+  featured    Boolean @default(false)
+  deletedAt   DateTime?
+  units       RoomUnit[]
+  amenities   RoomAmenity[]
+  ratePlans   RatePlan[]
+  images      RoomImage[]
+  @@unique([propertyId, slug])
+  @@unique([id, propertyId])
+}
+
+model RoomUnit {
+  id           String @id @default(uuid()) @db.Uuid
+  propertyId   String @db.Uuid
+  roomTypeId   String @db.Uuid
+  roomType     RoomType @relation(fields: [roomTypeId, propertyId], references: [id, propertyId], onDelete: Restrict)
+  number       String
+  status       UnitStatus @default(ACTIVE)
+  housekeeping HousekeepingStatus @default(CLEAN)
+  note         String?
+  nights       InventoryNight[]
+  @@unique([propertyId, number])
+  @@unique([id, propertyId])
+  @@index([roomTypeId, status])
+}
+
+// Single ledger for bookings and blocks. Released allocations are deleted;
+// BookingRoom/AvailabilityBlock and AuditLog preserve history.
+model InventoryNight {
+  unitId        String @db.Uuid
+  propertyId    String @db.Uuid
+  date          DateTime @db.Date
+  bookingRoomId String? @db.Uuid
+  blockId       String? @db.Uuid
+  unit          RoomUnit @relation(fields: [unitId, propertyId], references: [id, propertyId], onDelete: Restrict)
+  bookingRoom   BookingRoom? @relation(fields: [bookingRoomId, propertyId], references: [id, propertyId], onDelete: Restrict)
+  block         AvailabilityBlock? @relation(fields: [blockId, propertyId], references: [id, propertyId], onDelete: Restrict)
+  @@id([unitId, date])
+  @@index([bookingRoomId])
+  @@index([blockId])
+  @@index([propertyId, date])
+}
+
+model AvailabilityBlock {
+  id         String @id @default(uuid()) @db.Uuid
+  propertyId String @db.Uuid
+  start      DateTime @db.Date
+  end        DateTime @db.Date
+  reason     String
+  kind       String
+  releasedAt DateTime?
+  nights     InventoryNight[]
+  @@unique([id, propertyId])
+}
+
+model Amenity {
+  id          String @id @default(uuid()) @db.Uuid
+  propertyId  String @db.Uuid
+  property    Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  name        String
+  icon        String?
+  description String?
+  category    String?
+  active      Boolean @default(true)
+  rooms       RoomAmenity[]
+  @@unique([propertyId, name])
+  @@unique([id, propertyId])
+}
+
+model RoomAmenity {
+  propertyId String @db.Uuid
+  roomTypeId String @db.Uuid
+  amenityId  String @db.Uuid
+  room       RoomType @relation(fields: [roomTypeId, propertyId], references: [id, propertyId], onDelete: Cascade)
+  amenity    Amenity @relation(fields: [amenityId, propertyId], references: [id, propertyId], onDelete: Cascade)
+  @@id([roomTypeId, amenityId])
+}
+
+model Policy {
+  id         String @id @default(uuid()) @db.Uuid
+  propertyId String @db.Uuid
+  property   Property @relation(fields: [propertyId], references: [id], onDelete: Restrict)
+  name       String
+  rules      Json
+  ratePlans  RatePlan[]
+  @@unique([id, propertyId])
+}
+
+model RatePlan {
+  id            String @id @default(uuid()) @db.Uuid
+  propertyId    String @db.Uuid
+  roomTypeId    String @db.Uuid
+  roomType      RoomType @relation(fields: [roomTypeId, propertyId], references: [id, propertyId], onDelete: Restrict)
+  policyId      String @db.Uuid
+  policy        Policy @relation(fields: [policyId, propertyId], references: [id, propertyId], onDelete: Restrict)
+  name          String
+  basePrice     Decimal @db.Decimal(14, 2)
+  minStay       Int @default(1)
+  maxStay       Int @default(30)
+  rules         Json @default("{}")
+  active        Boolean @default(true)
+  overrides     RateOverride[]
+  bookingRooms  BookingRoom[]
+  @@unique([id, propertyId])
+  @@index([roomTypeId, active])
+}
+
+model RateOverride {
+  id          String @id @default(uuid()) @db.Uuid
+  ratePlanId  String @db.Uuid
+  ratePlan    RatePlan @relation(fields: [ratePlanId], references: [id], onDelete: Cascade)
+  name        String
+  start       DateTime @db.Date
+  end         DateTime @db.Date
+  priority    Int
+  adjustment  String
+  value       Decimal @db.Decimal(14, 2)
+  restrictions Json @default("{}")
+  @@index([ratePlanId, start, end, priority])
+}
+
+model Guest {
+  id         String @id @default(uuid()) @db.Uuid
+  propertyId String @db.Uuid
+  property   Property @relation(fields: [propertyId], references: [id], onDelete: Restrict)
+  name       String
+  email      String
+  phone      String?
+  profile    Json @default("{}")
+  notes      String?
+  vip        Boolean @default(false)
+  blacklisted Boolean @default(false)
+  deletedAt  DateTime?
+  bookings   Booking[]
+  @@unique([id, propertyId])
+  @@index([propertyId, email])
+}
+
+model BookingSource {
+  id         String @id @default(uuid()) @db.Uuid
+  propertyId String @db.Uuid
+  property   Property @relation(fields: [propertyId], references: [id], onDelete: Restrict)
+  name       String
+  active     Boolean @default(true)
+  bookings   Booking[]
+  @@unique([id, propertyId])
+  @@unique([propertyId, name])
+}
+
+model Booking {
+  id             String @id @default(uuid()) @db.Uuid
+  propertyId     String @db.Uuid
+  property       Property @relation(fields: [propertyId], references: [id], onDelete: Restrict)
+  reference      String @unique
+  accessTokenHash String @unique
+  idempotencyKey String
+  requestHash    String
+  guestId        String @db.Uuid
+  guest          Guest @relation(fields: [guestId, propertyId], references: [id, propertyId], onDelete: Restrict)
+  sourceId       String @db.Uuid
+  source         BookingSource @relation(fields: [sourceId, propertyId], references: [id, propertyId], onDelete: Restrict)
+  status         BookingStatus @default(PENDING)
+  currency       String @db.Char(3)
+  total          Decimal @db.Decimal(14, 2)
+  pricingSnapshot Json
+  holdExpiresAt  DateTime?
+  version        Int @default(1)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  rooms          BookingRoom[]
+  payments       Payment[]
+  extras         BookingService[]
+  redemptions    PromoRedemption[]
+  events         BookingEvent[]
+  invoices       Invoice[]
+  @@unique([propertyId, idempotencyKey])
+  @@unique([id, propertyId])
+  @@index([propertyId, status, createdAt])
+  @@index([status, holdExpiresAt])
+}
+
+model BookingRoom {
+  id         String @id @default(uuid()) @db.Uuid
+  propertyId String @db.Uuid
+  bookingId  String @db.Uuid
+  booking    Booking @relation(fields: [bookingId, propertyId], references: [id, propertyId], onDelete: Restrict)
+  ratePlanId String @db.Uuid
+  ratePlan   RatePlan @relation(fields: [ratePlanId, propertyId], references: [id, propertyId], onDelete: Restrict)
+  checkIn    DateTime @db.Date
+  checkOut   DateTime @db.Date
+  adults     Int
+  children   Int @default(0)
+  snapshot   Json
+  nights     InventoryNight[]
+  @@unique([id, propertyId])
+  @@index([bookingId])
+  @@index([propertyId, checkIn, checkOut])
+}
+
+model BookingEvent {
+  id         String @id @default(uuid()) @db.Uuid
+  bookingId  String @db.Uuid
+  booking    Booking @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+  kind       String
+  actorId    String? @db.Uuid
+  data       Json
+  createdAt  DateTime @default(now())
+  @@index([bookingId, createdAt])
+}
+
+model PaymentMethod {
+  id         String @id @default(uuid()) @db.Uuid
+  propertyId String @db.Uuid
+  property   Property @relation(fields: [propertyId], references: [id], onDelete: Restrict)
+  provider   String
+  enabled    Boolean @default(false)
+  publicConfig Json @default("{}")
+  secretReference String?
+  @@unique([propertyId, provider])
+}
+
+model Payment {
+  id             String @id @default(uuid()) @db.Uuid
+  propertyId     String @db.Uuid
+  bookingId      String @db.Uuid
+  booking        Booking @relation(fields: [bookingId, propertyId], references: [id, propertyId], onDelete: Restrict)
+  provider       String
+  externalId     String?
+  idempotencyKey String @unique
+  amount         Decimal @db.Decimal(14, 2)
+  currency       String @db.Char(3)
+  status         PaymentStatus @default(PENDING)
+  verifiedBy     String? @db.Uuid
+  createdAt      DateTime @default(now())
+  refunds        Refund[]
+  @@unique([propertyId, provider, externalId])
+  @@index([propertyId, createdAt])
+  @@index([bookingId])
+}
+
+model Refund {
+  id             String @id @default(uuid()) @db.Uuid
+  paymentId      String @db.Uuid
+  payment        Payment @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+  amount         Decimal @db.Decimal(14, 2)
+  status         PaymentStatus @default(PENDING)
+  idempotencyKey String @unique
+  externalId     String?
+  reason         String
+  createdAt      DateTime @default(now())
+  @@unique([paymentId, externalId])
+}
+
+model WebhookEvent {
+  provider   String
+  externalId String
+  receivedAt DateTime @default(now())
+  processedAt DateTime?
+  payloadHash String
+  @@id([provider, externalId])
+}
+
+model Service {
+  id         String @id @default(uuid()) @db.Uuid
+  propertyId String @db.Uuid
+  property   Property @relation(fields: [propertyId], references: [id], onDelete: Restrict)
+  name       String
+  description String
+  price      Decimal @db.Decimal(14, 2)
+  pricingType String
+  active     Boolean @default(true)
+  rules      Json @default("{}")
+  bookings   BookingService[]
+  @@unique([id, propertyId])
+}
+
+model BookingService {
+  id         String @id @default(uuid()) @db.Uuid
+  propertyId String @db.Uuid
+  bookingId  String @db.Uuid
+  booking    Booking @relation(fields: [bookingId, propertyId], references: [id, propertyId], onDelete: Restrict)
+  serviceId  String @db.Uuid
+  service    Service @relation(fields: [serviceId, propertyId], references: [id, propertyId], onDelete: Restrict)
+  quantity   Int
+  total      Decimal @db.Decimal(14, 2)
+  snapshot   Json
+}
+
+model PromoCode {
+  id            String @id @default(uuid()) @db.Uuid
+  propertyId    String @db.Uuid
+  property      Property @relation(fields: [propertyId], references: [id], onDelete: Restrict)
+  code          String
+  kind          String
+  value         Decimal @db.Decimal(14, 2)
+  startsAt      DateTime
+  expiresAt     DateTime
+  usageLimit    Int?
+  perGuestLimit Int @default(1)
+  rules         Json @default("{}")
+  active        Boolean @default(true)
+  redemptions   PromoRedemption[]
+  @@unique([propertyId, code])
+  @@unique([id, propertyId])
+}
+
+model PromoRedemption {
+  propertyId String @db.Uuid
+  promoId    String @db.Uuid
+  bookingId  String @db.Uuid
+  promo      PromoCode @relation(fields: [promoId, propertyId], references: [id, propertyId], onDelete: Restrict)
+  booking    Booking @relation(fields: [bookingId, propertyId], references: [id, propertyId], onDelete: Restrict)
+  amount     Decimal @db.Decimal(14, 2)
+  @@id([promoId, bookingId])
+}
+
+model TaxRule {
+  id         String @id @default(uuid()) @db.Uuid
+  propertyId String @db.Uuid
+  property   Property @relation(fields: [propertyId], references: [id], onDelete: Restrict)
+  name       String
+  kind       String
+  value      Decimal @db.Decimal(14, 2)
+  included   Boolean @default(false)
+  priority   Int @default(0)
+  active     Boolean @default(true)
+}
+
+model Invoice {
+  id         String @id @default(uuid()) @db.Uuid
+  bookingId  String @db.Uuid
+  propertyId String @db.Uuid
+  booking    Booking @relation(fields: [bookingId, propertyId], references: [id, propertyId], onDelete: Restrict)
+  number     String
+  snapshot   Json
+  issuedAt   DateTime @default(now())
+  @@unique([propertyId, number])
+}
+
+model Page {
+  id         String @id @default(uuid()) @db.Uuid
+  propertyId String @db.Uuid
+  property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  slug       String
+  locale     String
+  title      String
+  status     PublicationStatus @default(DRAFT)
+  publishAt  DateTime?
+  seo        Json @default("{}")
+  version    Int @default(1)
+  publishedVersion Int?
+  sections   PageSection[]
+  revisions  PageRevision[]
+  menuItems  MenuItem[]
+  @@unique([propertyId, slug, locale])
+}
+
+model PageSection {
+  id         String @id @default(uuid()) @db.Uuid
+  pageId     String @db.Uuid
+  page       Page @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  type       String
+  schemaVersion Int @default(1)
+  position   Int
+  visible    Boolean @default(true)
+  startsAt   DateTime?
+  endsAt     DateTime?
+  content    Json
+  style      Json @default("{}")
+  @@unique([pageId, position])
+}
+
+// Immutable complete page snapshots; public reads publishedVersion, never drafts.
+model PageRevision {
+  id         String @id @default(uuid()) @db.Uuid
+  pageId     String @db.Uuid
+  page       Page @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  version    Int
+  snapshot   Json
+  actorId    String @db.Uuid
+  createdAt  DateTime @default(now())
+  @@unique([pageId, version])
+}
+
+model Menu {
+  id         String @id @default(uuid()) @db.Uuid
+  propertyId String @db.Uuid
+  property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  name       String
+  locale     String
+  items      MenuItem[]
+  @@unique([propertyId, name, locale])
+}
+
+model MenuItem {
+  id       String @id @default(uuid()) @db.Uuid
+  menuId   String @db.Uuid
+  menu     Menu @relation(fields: [menuId], references: [id], onDelete: Cascade)
+  parentId String? @db.Uuid
+  parent   MenuItem? @relation("MenuTree", fields: [parentId, menuId], references: [id, menuId], onDelete: NoAction)
+  children MenuItem[] @relation("MenuTree")
+  label    String
+  url      String
+  linkType String @default("internal")
+  pageId   String? @db.Uuid
+  page     Page? @relation(fields: [pageId], references: [id], onDelete: SetNull)
+  position Int
+  visible  Boolean @default(true)
+  newTab   Boolean @default(false)
+  icon     String?
+  @@unique([id, menuId])
+  @@index([menuId, parentId, position])
+}
+
+model Media {
+  id         String @id @default(uuid()) @db.Uuid
+  propertyId String @db.Uuid
+  property   Property @relation(fields: [propertyId], references: [id], onDelete: Restrict)
+  storageKey String @unique
+  mimeType   String
+  bytes      Int
+  width      Int?
+  height     Int?
+  alt        String
+  folder     String?
+  state      String @default("QUARANTINED")
+  createdAt  DateTime @default(now())
+  roomImages RoomImage[]
+  @@unique([id, propertyId])
+}
+
+model RoomImage {
+  propertyId String @db.Uuid
+  roomTypeId String @db.Uuid
+  mediaId    String @db.Uuid
+  room       RoomType @relation(fields: [roomTypeId, propertyId], references: [id, propertyId], onDelete: Cascade)
+  media      Media @relation(fields: [mediaId, propertyId], references: [id, propertyId], onDelete: Restrict)
+  position   Int
+  @@id([roomTypeId, mediaId])
+}
+
+// Schema-registered collections: offers, packages, FAQ, testimonials, gallery,
+// nearby places, blog posts/categories, popups. Financial rules use typed tables.
+model ContentEntry {
+  id         String @id @default(uuid()) @db.Uuid
+  propertyId String @db.Uuid
+  property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  kind       String
+  slug       String
+  locale     String
+  status     PublicationStatus @default(DRAFT)
+  publishAt  DateTime?
+  data       Json
+  published  Json?
+  version    Int @default(1)
+  @@unique([propertyId, kind, slug, locale])
+  @@index([propertyId, kind, status, publishAt])
+}
+
+model CustomForm {
+  id         String @id @default(uuid()) @db.Uuid
+  propertyId String @db.Uuid
+  property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  name       String
+  fields     Json
+  active     Boolean @default(false)
+  submissions FormSubmission[]
+}
+
+model FormSubmission {
+  id        String @id @default(uuid()) @db.Uuid
+  formId    String @db.Uuid
+  form      CustomForm @relation(fields: [formId], references: [id], onDelete: Restrict)
+  data      Json
+  resolvedAt DateTime?
+  createdAt DateTime @default(now())
+  @@index([formId, createdAt])
+}
+
+model EmailTemplate {
+  id         String @id @default(uuid()) @db.Uuid
+  propertyId String @db.Uuid
+  property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  key        String
+  locale     String
+  subject    String
+  content    Json
+  active     Boolean @default(true)
+  @@unique([propertyId, key, locale])
+}
+
+model OutboxEvent {
+  id         String @id @default(uuid()) @db.Uuid
+  propertyId String @db.Uuid
+  property   Property @relation(fields: [propertyId], references: [id], onDelete: Restrict)
+  kind       String
+  payload    Json
+  dedupeKey  String @unique
+  attempts   Int @default(0)
+  availableAt DateTime @default(now())
+  lockedUntil DateTime?
+  deliveredAt DateTime?
+  lastErrorCode String?
+  @@index([deliveredAt, availableAt])
+}
+
+model AuditLog {
+  id         String @id @default(uuid()) @db.Uuid
+  propertyId String @db.Uuid
+  property   Property @relation(fields: [propertyId], references: [id], onDelete: Restrict)
+  actorId    String? @db.Uuid
+  actor      User? @relation(fields: [actorId], references: [id], onDelete: Restrict)
+  action     String
+  entityType String
+  entityId   String
+  before     Json?
+  after      Json?
+  requestId  String?
+  createdAt  DateTime @default(now())
+  @@index([propertyId, createdAt])
+  @@index([entityType, entityId])
+}

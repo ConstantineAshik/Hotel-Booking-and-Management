@@ -1,0 +1,9 @@
+import {notFound} from "next/navigation";
+import {PrintButton} from "../../../../components/print-button";
+import {reportPeriodSchema} from "../../../../domain/reports";
+import {requireUser} from "../../../../server/auth";
+import {propertyReport} from "../../../../server/reports";
+export default async function PrintableReport({searchParams}:{searchParams:Promise<{from?:string;to?:string}>}){
+ const {property,principal}=await requireUser("reports.view"),query=await searchParams,period=reportPeriodSchema.safeParse(query);if(!period.success)notFound();const report=await propertyReport(principal,period.data);
+ return <article className="print-report"><header><div><span className="eyebrow">PROPERTY PERFORMANCE</span><h1>{property.name}</h1><p>{report.period.from} through {report.period.to} · {report.timezone}</p></div><PrintButton/></header><section className="print-metrics">{[["Room revenue",report.totals.roomRevenue],["Net collected",report.totals.net],["Occupancy",`${report.totals.occupancy}%`],["ADR",report.totals.adr],["RevPAR",report.totals.revpar],["Cancellation rate",`${report.totals.cancellationRate}%`]].map(([label,value])=><div key={label}><small>{label}</small><strong>{label.includes("rate")||label==="Occupancy"?value:`${report.currency} ${value}`}</strong></div>)}</section><h2>Daily activity</h2><table className="report-table"><thead><tr><th>Date</th><th>Room revenue</th><th>Net collected</th><th>Bookings</th><th>Occupied</th><th>Available</th></tr></thead><tbody>{report.days.map(day=><tr key={day.date}><th>{day.date}</th><td>{day.roomRevenue}</td><td>{day.net}</td><td>{day.bookings}</td><td>{day.roomNights}</td><td>{day.availableRooms}</td></tr>)}</tbody></table><footer>Generated {new Intl.DateTimeFormat("en",{dateStyle:"long",timeStyle:"short",timeZone:property.timezone}).format(new Date())} · Amounts in {report.currency}</footer></article>;
+}

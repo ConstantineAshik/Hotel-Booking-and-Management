@@ -1,0 +1,3 @@
+"use client";
+import {useState} from "react";
+export function Announcement({config,now}:{config:Record<string,string|number|boolean>;now:number}){const [dismissed,setDismissed]=useState(false);if(!config.enabled||dismissed)return null;if(config.startsAt&&now<Date.parse(String(config.startsAt))||config.endsAt&&now>=Date.parse(String(config.endsAt)))return null;return <div className="announcement" style={{background:String(config.background),color:String(config.text)}}>{config.url?<a href={String(config.url)}>{String(config.message)}</a>:String(config.message)}{config.dismissible&&<button aria-label="Dismiss announcement" onClick={()=>setDismissed(true)}>×</button>}</div>;}

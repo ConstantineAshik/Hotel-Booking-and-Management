@@ -1,0 +1,7 @@
+import Link from "next/link";import {notFound} from "next/navigation";import {db} from "../../../../../server/db";import {requireUser} from "../../../../../server/auth";import {PageBuilder} from "../../../../../components/page-builder";import {pageDocumentSchema} from "../../../../../domain/cms";
+export default async function PageEdit({params}:{params:Promise<{id:string}>}){
+ const {property,principal}=await requireUser("website.edit");const {id}=await params;
+ const [page,media]=await Promise.all([id==="new"?null:db.page.findFirst({where:{id,propertyId:property.id},include:{revisions:{orderBy:{version:"desc"},take:20}}}),db.media.findMany({where:{propertyId:property.id,state:"READY"},select:{id:true,alt:true},take:300})]);if(id!=="new"&&!page)notFound();
+ const initial=page?.revisions[0]?.snapshot??{title:"New page",slug:"new-page",locale:property.locale,sections:[]};
+ return <><Link className="back-link" href="/admin/website">← Website pages</Link><div className="page-heading"><div><span className="eyebrow">PAGE BUILDER</span><h1>{page?.title??"A blank canvas."}</h1><p className="muted">Build the page section by section. Publish when it feels right.</p></div></div><PageBuilder initialId={page?.id} initialVersion={page?.version??0} initialDocument={pageDocumentSchema.parse(initial)} media={media} canPublish={principal.permissions.includes("website.publish")} revisions={page?.revisions.map(r=>({version:r.version,createdAt:r.createdAt.toISOString(),document:pageDocumentSchema.parse(r.snapshot)}))??[]}/></>;
+}

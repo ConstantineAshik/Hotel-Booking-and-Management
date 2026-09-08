@@ -1,0 +1,3 @@
+import {notFound} from "next/navigation";import {z} from "zod";import {db} from "../../../server/db";import {HotelShell} from "../../../components/hotel-shell";import {PublicForm} from "../../../components/public-form";import {formFieldSchema} from "../../../domain/forms";
+export const dynamic="force-dynamic";
+export default async function FormPage({params}:{params:Promise<{id:string}>}){const {id}=await params;const form=await db.customForm.findFirst({where:{id,active:true}});if(!form)notFound();return <HotelShell><main id="main" className="public-container"><div className="hotel-page-heading"><h1>{form.name}</h1></div><section className="panel padded"><PublicForm id={form.id} fields={z.array(formFieldSchema).parse(form.fields)}/></section></main></HotelShell>;}

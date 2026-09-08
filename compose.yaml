@@ -1,0 +1,58 @@
+services:
+  postgres:
+    image: postgres:17-bookworm
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: hotel
+      POSTGRES_USER: hotel
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hotel -d hotel"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+  migrate:
+    build: .
+    command: ["./node_modules/.bin/prisma", "migrate", "deploy"]
+    environment: &app-environment
+      DATABASE_URL: postgresql://hotel:${POSTGRES_PASSWORD}@postgres:5432/hotel?schema=public
+      APP_URL: ${APP_URL:?Set APP_URL}
+      SESSION_SECRET: ${SESSION_SECRET:?Set SESSION_SECRET}
+      SETUP_TOKEN: ${SETUP_TOKEN:-}
+      EMAIL_API_KEY: ${EMAIL_API_KEY:-}
+      EMAIL_FROM: ${EMAIL_FROM:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+  web:
+    build: .
+    restart: unless-stopped
+    environment: *app-environment
+    ports:
+      - "3000:3000"
+    volumes:
+      - uploads:/app/.uploads
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r=>{if(!r.ok)process.exit(1)})"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+  worker:
+    build: .
+    command: ["./node_modules/.bin/tsx", "scripts/worker.ts"]
+    restart: unless-stopped
+    environment: *app-environment
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    profiles: ["notifications"]
+
+volumes:
+  postgres-data:
+  uploads:

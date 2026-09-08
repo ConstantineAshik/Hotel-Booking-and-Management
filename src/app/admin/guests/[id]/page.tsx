@@ -1,0 +1,26 @@
+import Link from "next/link";
+import {notFound} from "next/navigation";
+import {z} from "zod";
+import {ActionForm} from "../../../../components/action-form";
+import {guestProfileSchema} from "../../../../domain/guests";
+import {requireUser} from "../../../../server/auth";
+import {digest} from "../../../../server/crypto";
+import {db} from "../../../../server/db";
+import {mergeGuest,saveGuest} from "../../../../server/guest-actions";
+
+export default async function GuestDetail({params}:{params:Promise<{id:string}>}){
+ const {property,principal}=await requireUser("guest.view"),{id}=await params;if(!z.uuid().safeParse(id).success)notFound();
+ const guest=await db.guest.findFirst({where:{id,propertyId:property.id,deletedAt:null},include:{bookings:{orderBy:{createdAt:"desc"},take:50,include:{rooms:true}}}});if(!guest)notFound();
+ const duplicateWhere={propertyId:property.id,deletedAt:null,id:{not:guest.id},OR:[{email:{equals:guest.email,mode:"insensitive" as const}},...(guest.phone?[{phone:guest.phone}]:[])]};
+ const duplicates=principal.permissions.includes("guest.edit")?await db.guest.findMany({where:duplicateWhere,include:{_count:{select:{bookings:true}}},orderBy:{name:"asc"},take:20}):[];
+ const profile=guestProfileSchema.parse(guest.profile),fingerprint=digest(JSON.stringify({name:guest.name,email:guest.email,phone:guest.phone,profile:guest.profile,notes:guest.notes,vip:guest.vip,blacklisted:guest.blacklisted}));
+ return <>
+  <Link className="back-link" href="/admin/guests">← Guests</Link>
+  <div className="page-heading"><div><span className="eyebrow">GUEST PROFILE</span><h1>{guest.name}.</h1><p className="muted">{guest.email}</p></div>{guest.vip?<span className="badge green">VIP guest</span>:null}</div>
+  <div className="split-layout">
+   <section className="panel padded"><h2>Contact & preferences</h2>{principal.permissions.includes("guest.edit")?<ActionForm key={fingerprint} action={saveGuest} label="Save guest profile"><input type="hidden" name="id" value={guest.id}/><input type="hidden" name="fingerprint" value={fingerprint}/><div className="form-grid"><label>Name<input name="name" defaultValue={guest.name} required maxLength={150}/></label><label>Email<input name="email" type="email" defaultValue={guest.email} required maxLength={254}/></label><label>Phone<input name="phone" defaultValue={guest.phone??""} maxLength={40}/></label><label>Nationality<input name="nationality" defaultValue={profile.nationality} maxLength={100}/></label></div><label>Address<textarea name="address" defaultValue={profile.address} maxLength={1000}/></label><label>Stay preferences<textarea name="preferences" defaultValue={profile.preferences} maxLength={3000}/></label><label>Staff notes<textarea name="notes" defaultValue={guest.notes??""} maxLength={5000}/></label><label className="checkbox"><input name="vip" type="checkbox" defaultChecked={guest.vip}/>VIP guest</label><label className="checkbox"><input name="blacklisted" type="checkbox" defaultChecked={guest.blacklisted}/>Block new bookings with this email address</label><label>Type CONFIRM if changing the booking block<input name="confirmation" autoComplete="off"/></label><p className="muted">Blocking affects future reservations. Existing reservations remain active.</p></ActionForm>:<dl><dt>Phone</dt><dd>{guest.phone||"Not provided"}</dd><dt>Preferences</dt><dd>{profile.preferences||"None recorded"}</dd><dt>Staff notes</dt><dd>{guest.notes||"None recorded"}</dd></dl>}</section>
+   <section className="panel"><div className="panel-heading"><h2>Reservation history</h2><small>Latest 50 reservations</small></div>{guest.bookings.map(booking=><div className="list-row" key={booking.id}><span>{principal.permissions.includes("booking.view")?<Link href={`/admin/bookings/${booking.id}`}><strong>{booking.reference}</strong></Link>:<strong>{booking.reference}</strong>}<small>{booking.rooms[0]?.checkIn.toISOString().slice(0,10)} — {booking.rooms[0]?.checkOut.toISOString().slice(0,10)}</small></span><span className="badge">{booking.status.toLowerCase()}</span></div>)}{!guest.bookings.length?<div className="empty-state"><p>No reservations linked to this profile.</p></div>:null}</section>
+  </div>
+  {principal.permissions.includes("guest.edit")?<section className="panel padded"><h2>Duplicate profiles</h2><p className="muted">Profiles with the same email address or exact phone number appear here. The current profile will be kept; reservations and missing profile details are moved from the selected duplicate.</p>{duplicates.length?<ActionForm action={mergeGuest} label="Merge selected profile"><input type="hidden" name="targetId" value={guest.id}/><label>Duplicate profile<select name="sourceId">{duplicates.map(candidate=><option key={candidate.id} value={candidate.id}>{candidate.name} · {candidate.email} · {candidate._count.bookings} reservations</option>)}</select></label><label>Type MERGE to confirm<input name="confirmation" required pattern="MERGE" autoComplete="off"/></label><p className="muted">This retires the duplicate profile and cannot be undone from the dashboard.</p></ActionForm>:<div className="empty-state compact-empty"><p>No likely duplicate profiles found.</p></div>}</section>:null}
+ </>;
+}
